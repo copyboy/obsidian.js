@@ -1,0 +1,138 @@
+EventEmitter = require \events .EventEmitter
+zlib = require \zlib
+
+Parser = require "./parser"
+Packet = require "./packet"
+EntityPlayer = require "../world/entityPlayer"
+
+chunk = null
+do ->
+  size = 16 * 128 * 16
+  all = new Buffer size * 2.5
+  all.fill 0
+  blocks = all.slice 0, size
+  for x til 16
+    for z til 16
+      for y til 59
+        blocks[y + z * 128 + x * 128 * 16] = 0x01
+      for y from 59 til 62
+        blocks[y + z * 128 + x * 128 * 16] = 0x03
+      blocks[63 + z * 128 + x * 128 * 16] = 0x02
+  metadata = all.slice size, size * 1.5
+  blockLight = all.slice size * 1.5, size * 2
+  skyLight = all.slice size * 2
+  skyLight.fill 0xFF
+  err, buffer <- zlib.deflate all
+  chunk := buffer
+
+module.exports = class MinecraftClient extends EventEmitter
+
+  (@server, @socket) ->
+    super!
+    @connected = true
+    @address = socket.remoteAddress
+    @entity = null
+    
+    handshaked = false
+    loggedIn = false
+    
+    @pinging = null
+    @lastPing = 0
+    
+    @socket.setNoDelay!
+    @socket.setTimeout 30 * 1000, ~> @disconnect "Timeout."
+    @socket.on \error, (err) ~> @emit \error, err
+    @socket.on \close, ~> @disconnect false
+    
+    @parser = new Parser \client
+    @socket.pipe(@parser)
+    
+    @parser.on \packet, (packet) ~>
+      if packet instanceof Error
+        @disconnect "Error: #{packet.message}"
+        return
+      
+      @emit \packet, packet
+      switch packet.name
+        
+        case "Handshake"
+          if handshaked then break
+          handshaked := true
+          @send Packet.handshake "-"
+        
+        case "Login"
+          if loggedIn then break
+          loggedIn := true
+          
+          if packet.data.version != 23
+            @disconnect "Version doesn't match"
+            return
+          @name = packet.data.username
+          
+          @emit \login
+          if !@connected then break
+          console.log "#{@address} logged in as #{@name}."
+          
+          @pinging = setInterval ~>
+            @lastPing = Math.floor (Math.random! - 0.5) * (2 ** 32)
+            @send Packet.ping @lastPing
+          , 10000
+          
+          @send Packet.login 0, 0, "DEFAULT", 1, 0, 0, 128, 16
+          @send Packet.spawnPosition 0, 64, 0
+          for x from -5 til 5
+            for z from -5 til 5
+              @send Packet.chunk x, z, true
+              @send Packet.chunkPart x * 16, 0, z * 16, 15, 127, 15, chunk
+          @send Packet.playerPositionLook 0, 66, 66, 0, 0, 0, false
+          
+          watchEntity = (entity) ~>
+            @send entity.getSpawnPacket!
+            onMove = (packet) ~> @send packet
+            onDestroy = ~> @send entity.getDestroyPacket!
+            entity.on \move, onMove
+            entity.on \destroy, onDestroy
+            @on \disconnect, ~>
+              entity.removeListener \move, onMove
+              entity.removeListener \destroy, onDestroy
+          
+          @server.world.entities.forEach -> watchEntity it
+          @entity = new EntityPlayer @server.world, @name
+          @server.world.on \entity, ~> watchEntity it
+        
+        case "Player OnGround", "Player Position", "Player Look", "Player Position + Look"
+          if !@entity then break
+          @entity.position = packet.data[\x, \y, \z] if packet.data.x
+          @entity.rotation = ((rot % 360 + 360) % 360 for rot of packet.data[\yaw, \pitch]) if packet.data.yaw
+        
+        case "Serverlist Ping"
+          @send Packet.disconnect "#{@server.description}"
+          @disconnect false
+        
+        case "Disconnect"
+          @disconnect!
+    
+    console.log "#{@address} connected."
+  
+  send: (packet) ->
+    if !@connected then return
+    # console.log "#{@name ? @address} <= #{packet}"
+    @socket.write packet.compile!
+  
+  disconnect: (reason) ->
+    if !@connected then return
+    if reason !== false
+      @send Packet.disconnect reason ? "Disconnected."
+      if reason then msg = " (#{reason})"
+    console.log "#{@name ? @address} disconnected#{msg ? ""}."
+    
+    @connected = false
+    @socket.destroy!
+    @socket = null
+    @parser.destroy!
+    @parser = null
+    
+    if @entity then @entity.destroy!
+    if @pinging then clearTimeout @pinging
+    
+    @emit \disconnect, reason

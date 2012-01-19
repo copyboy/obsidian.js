@@ -1,0 +1,4 @@
+Server = require "./net/server"
+
+server = new Server!
+server.listen 42006

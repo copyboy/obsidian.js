@@ -1,0 +1,63 @@
+EventEmitter = require \events .EventEmitter
+
+Packet = require "../net/packet"
+
+module.exports = class Entity extends EventEmitter
+  
+  (@world) ->
+    @position = [ 0, 0, 0 ]
+    @rotation = [ 0, 0, 0 ]
+    @destroyed = false
+    
+    @pos = [ 0, 0, 0 ]
+    @rot = [ 0, 0 ]
+    tick = ~> @tick()
+    @world.on \tick, tick
+    @on \destroy, ~>
+      @world.removeListener \tick, tick
+    
+    @world.addEntity this
+  
+  tick: ->
+    [x, y, z] = for p of @position
+      Math.floor p * 32
+    [yaw, pitch] = for r of @rotation
+      Math.floor r / 360 * 256
+    
+    sendPos = false
+    sendTeleport = false
+    sendLook = false
+    
+    for p, i of [x, y, z]
+      if p != @pos[i]
+        sendPos = true
+      if (Math.abs p - @pos[i]) >= 4 * 32
+        sendTeleport = true
+    for r, i of [yaw, pitch]
+      if r != @rot[i]
+        sendLook = true
+    
+    if !sendPos && !sendLook then return
+    
+    packet = if sendPos
+      if !sendTeleport
+        [xx, yy, zz] = for p, i of [x, y, z] then p - @pos[i]
+        if !sendLook then Packet.entityMove @id, xx, yy, zz
+        else Packet.entityMoveLook @id, xx, yy, zz, yaw, pitch
+      else Packet.entityTeleport @id, x, y, z, yaw, pitch
+    else Packet.entityLook @id, yaw, pitch
+    @emit \move, packet
+    
+    @pos = [ x, y, z ]
+    @rot = [ yaw, pitch ]
+  
+  getSpawnPacket: ->
+    # Implemented by child classes
+  
+  getDestroyPacket: ->
+    Packet.destroyEntity @id
+  
+  destroy: ->
+    if @destroyed then return
+    @destroyed = true
+    @emit \destroy

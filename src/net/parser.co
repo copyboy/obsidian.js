@@ -1,0 +1,24 @@
+Stream = require \stream .Stream
+Packet = require "./packet"
+
+module.exports = class Parser extends Stream
+  
+  (@type) ->
+    @readable = false
+    @writable = true
+  
+  write: (buffer) ->
+    if !@writable then return
+    position = 0
+    while position < buffer.length
+      packet = Packet.read @type, buffer, position
+      if !packet then return
+      @emit \packet, packet
+      if packet instanceof Error then return
+      position += packet.size
+  
+  end: ->
+    @destroy!
+  
+  destroy: ->
+    @writable = false

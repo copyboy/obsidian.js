@@ -1,0 +1,17 @@
+Server = require \net .Server
+
+Client = require "./client"
+World = require "../world/world"
+
+module.exports = class MinecraftServer extends Server
+  ->
+    super ...
+    @description = "obsidian.js Test Server"
+    @world = new World this
+    
+    @on \connection, (socket) ~>
+      client = new Client this, socket
+      @emit \client, client
+    
+    @on \listening, ~>
+      console.log "obsidian.js ready for incoming connections."

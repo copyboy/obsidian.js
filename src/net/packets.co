@@ -1,0 +1,286 @@
+{byte, sbyte, short, int, long, float, double, bool, string, raw, slot} = require "./types"
+
+module.exports =
+  0x00:
+    name: "Ping"
+    types:  [ int ]
+    server: [ \id ]
+    client: [ \id ]
+  0x01:
+    name: "Login"
+    types:  [ int,       string,    long,     string,     int,       byte,       byte,        byte,       byte        ]
+    server: [ \playerID, null,      \mapSeed, \levelType, \gamemode, \dimension, \difficulty, \mapHeight, \maxPlayers ]
+    client: [ \version,  \username, null,     null,       null,      null,       null,        null,       null        ]
+  0x02:
+    name: "Handshake"
+    types:  [ string    ]
+    server: [ \authHash ]
+    client: [ \username ]
+  0x03:
+    name: "Chat"
+    types:  [ string   ]
+    server: [ \message ]
+    client: [ \message ]
+  0x04:
+    name: "Time"
+    types:  [ long  ]
+    server: [ \time ]
+  0x05:
+    name: "Equipment"
+    types:  [ int,     short, short, short   ]
+    server: [ \entity, \slot, \item, \damage ]
+  0x06:
+    name: "Spawn Position"
+    types:  [ int, int, int ]
+    server: [ \x , \y , \z  ]
+  0x07:
+    name: "Use"
+    types:  [ int,  int,     bool       ]
+    client: [ null, \target, \leftclick ]
+  0x08:
+    name: "Health"
+    types:  [ short,   short, float           ]
+    server: [ \health, \food, \foodSaturation ]
+  0x09:
+    name: "Respawn"
+    types:  [ byte,       byte,        byte,      short,        long,     string     ]
+    server: [ \dimension, \difficulty, \creative, \worldHeight, \mapSeed, \levelType ]
+    client: [ null,       null,        null,      null,         null,     null       ]
+  0x0A:
+    name: "Player OnGround"
+    types:  [ bool      ]
+    client: [ \onGround ]
+  0x0B:
+    name: "Player Position"
+    types:  [ double, double, double,  double, bool      ]
+    client: [ \x,     \y,     \stance, \z,     \onGround ]
+  0x0C:
+    name: "Player Look"
+    types:  [ float, float,  bool      ]
+    client: [ \yaw,  \pitch, \onGround ]
+  0x0D:
+    name: "Player Position + Look"
+    types:  [ double, double,  double,  double, float, float,  bool      ]
+    server: [ \x ,    \stance, \y,      \z,     \yaw,  \pitch, \onGround ]
+    client: [ \x,     \y,      \stance, \z,     \yaw,  \pitch, \onGround ]
+  0x0E:
+    name: "Digging"
+    types:  [ byte,    int, byte, int, byte  ]
+    client: [ \status, \x,  \y,   \z,  \face ]
+  0x0F:
+    name: "Placing"
+    types:  [ int, byte, int, byte,  slot  ]
+    client: [ \x,  \y,   \z,  \face, \held ]
+  0x10:
+    name: "Holding"
+    types:  [ short ]
+    client: [ \slot ]
+  0x11:
+    name: "Sleep"
+    types:  [ int,     byte, int, byte, int ]
+    server: [ \player, null, \x,  \y,   \z  ]
+  0x12:
+    name: "Animation"
+    types:  [ int,     byte  ]
+    server: [ \entity, \type ]
+    client: [ null,    \type ]
+  0x13:
+    name: "Action"
+    types:  [ int,  byte  ]
+    client: [ null, \type ]
+  0x14:
+    name: "Player Spawn"
+    types:  [ int,     string,      int, int, int, byte, byte,   short ]
+    server: [ \entity, \playerName, \x,  \y,  \z,  \yaw, \pitch, \item ]
+  0x15:
+    name: "Pickup Spawn"
+    types:  [ int,     short, byte,   short,   int, int, int, byte, byte,   byte  ]
+    server: [ \entity, \item, \count, \damage, \x,  \y,  \z,  \yaw, \pitch, \roll ]
+  0x16:
+    name: "Collect"
+    types:  [ int,     int        ]
+    server: [ \pickup, \collector ]
+  /*
+   * 0x17:
+   *   name: "Object Spawn"
+   *   types:  [ int,     byte,   int, int, int, ((int, short, short, short)) ]
+   *   server: [ \entity, \type,  \x,  \y,  \z,  \thrower, \xSpeed, \ySpeed, \zSpeed ]
+   * 0x18:
+   *   name: "Mob Spawn"
+   *   types:  [ int,     byte,  int, int, int, byte, byte,   metadata  ]
+   *   server: [ \entity, \type, \x,  \y,  \z,  \yaw, \pitch, \metadata ]
+   */
+  0x19:
+    name: "Painting"
+    types:  [ int,     string,  int, int, int, int        ]
+    server: [ \entity, \title,  \x,  \y,  \z,  \direction ]
+  0x1A:
+    name: "Experience"
+    types:  [ int,     int, int, int, short  ]
+    server: [ \entity, \x,  \y,  \z,  \count ]
+  0x1C:
+    name: "Entity Velocity"
+    types:  [ int,     short,   short,   short   ]
+    server: [ \entity, \xSpeed, \ySpeed, \zSpeed ]
+  0x1D:
+    name: "Destroy Entity"
+    types:  [ int     ]
+    server: [ \entity ]
+  0x1E:
+    name: "Entity"
+    types:  [ int     ]
+    server: [ \entity ]
+  0x1F:
+    name: "Entity Move"
+    types:  [ int,     sbyte, sbyte, sbyte ]
+    server: [ \entity, \x,    \y,    \z    ]
+  0x20:
+    name: "Entity Look"
+    types:  [ int,     byte, byte   ]
+    server: [ \entity, \yaw, \pitch ]
+  0x21:
+    name: "Entity Move + Look"
+    types:  [ int,     sbyte, sbyte, sbyte, byte, byte   ]
+    server: [ \entity, \x,    \y,    \z,    \yaw, \pitch ]
+  0x22:
+    name: "Entity Teleport"
+    types:  [ int,     int, int, int, byte, byte   ]
+    server: [ \entity, \x,  \y,  \z,  \yaw, \pitch ]
+  0x26:
+    name: "Entity Status"
+    types:  [ int,     byte    ]
+    server: [ \entity, \status ]
+  0x27:
+    name: "Attach Entity"
+    types:  [ int,     int      ]
+    server: [ \entity, \vehicle ]
+  /*
+   * 0x28:
+   *   name: "Entity Metadata"
+   *   types:  [ int,     metadata  ]
+   *   server: [ \entity, \metadata ]
+   */
+  0x29:
+    name: "Effect"
+    types:  [ int,     byte,    byte,       short      ]
+    server: [ \entity, \effect, \amplifier, \duraction ]
+  0x2A:
+    name: "Remove Effect"
+    types:  [ int,     byte    ]
+    server: [ \entity, \effect ]
+  0x2B:
+    name: "Experience"
+    types:  [ float,     short,  short  ]
+    server: [ \progress, \level, \total ]
+  0x32:
+    name: "Chunk"
+    types:  [ int, int, bool  ]
+    server: [ \x,  \z,  \mode ]
+  0x33:
+    name: "Chunk Part"
+    types:  [ int, short, int, byte,   byte,   byte,    raw(int) ]
+    server: [ \x,  \y,    \z,  \width, \depth, \height, \data    ]
+  /*
+   * 0x34:
+   *   name: "Multi Block Change"
+   *   types:  [ int, int, arrays(short) ]
+   *   server: [ \x,  \z,  \blockChanges ]
+   */
+  0x35:
+    name: "Block Change"
+    types:  [ int, byte, int, byte,  byte      ]
+    server: [ \x,  \y,   \z,  \type, \metadata ]
+  0x36:
+    name: "Block Action"
+    types:  [ int, short, int, byte,   byte   ]
+    server: [ \x,  \y,    \z,  \data1, \data2 ]
+  /*
+   * 0x3C:
+   *   name: "Explosion"
+   *   types:  [ double, double, double, float,   ...
+   *   server: [ \x,     \y,     \z,     \radius, ...
+   */
+  0x3D:
+    name: "Sound/Particle Effect"
+    types:  [ int,     int, byte, int, int   ]
+    server: [ \effect, \x,  \y,   \z,  \data ]
+  0x46:
+    name: "Event"
+    types:  [ byte,   byte  ]
+    server: [ \event, \data ]
+  0x47:
+    name: "Thunderbolt"
+    types:  [ int,     bool,  int, int, int ]
+    server: [ \entity, \data, \x,  \y,  \z  ]
+  0x64:
+    name: "Open Window"
+    types:  [ byte,    byte,  string, byte   ]
+    server: [ \window, \type, \title, \slots ]
+  0x65:
+    name: "Close Window"
+    types:  [ byte    ]
+    server: [ \window ]
+    client: [ \window ]
+  /*
+   * 0x66:
+   *   name: "Window Click"
+   *   types:  [ byte,    short, byte,        short,   bool,   slot  ]
+   *   client: [ \window, \slot, \rightclick, \action, \shift, \item ]
+   * 0x67:
+   *   name: "Set Slot"
+   *   types:  [ byte,    short, slot  ]
+   *   server: [ \window, \slot, \item ]
+   * 0x68:
+   *   name: "Window Items"
+   *   types:  [ byte,    short,  array(slot) ]
+   *   server: [ \window, \count, \slots      ]
+   */
+  0x69:
+    name: "Window Property"
+    types:  [ byte,    short,     short  ]
+    server: [ \window, \property, \value ]
+  0x6A:
+    name: "Transaction"
+    types:  [ byte,    short,   bool      ]
+    server: [ \window, \action, \accepted ]
+  /*
+   * 0x6B:
+   *   name: "Creative Action"
+   *   types:  [ short, slot  ]
+   *   server: [ \slot, \item ]
+   */
+  0x6C:
+    name: "Enchant Item"
+    types:  [ byte,    byte         ]
+    server: [ \window, \enchantment ]
+  0x82:
+    name: "Update Sign"
+    types:  [ int, short, int, string, string, string, string  ]
+    server: [ \x,  \y,    \z,  \line1, \line2, \line3, \line4  ]
+    client: [ \x,  \y,    \z,  \line1, \line2, \line3, \line4  ]
+  0x83:
+    name: "Item Data"
+    types:  [ short, short,   raw(byte) ]
+    server: [ \item, \damage, \data     ]
+  0xC8:
+    name: "Increment Statistic"
+    types:  [ int,        byte    ]
+    server: [ \statistic, \amount ]
+  0xC9:
+    name: "Update Playerlist"
+    types:  [ string,      bool,    short ]
+    server: [ \playerName, \online, \ping ]
+  0xFA:
+    name: "Plugin Message"
+    types:  [ string,   raw(short) ]
+    server: [ \channel, \data      ]
+    client: [ \channel, \data      ]
+  0xFE:
+    name: "Serverlist Ping"
+    types:  [  ]
+    client: [  ]
+  0xFF:
+    name: "Disconnect"
+    types:  [ string  ]
+    server: [ \reason ]
+    client: [ \reason ]

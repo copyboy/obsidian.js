@@ -1,0 +1,24 @@
+EventEmitter = require \events .EventEmitter
+
+entityCounterMax = 65535
+
+module.exports = class World extends EventEmitter
+  
+  (@server) ->
+    @entityCounter = 0
+    @entities = []
+    
+    setInterval ~>
+      @emit \tick
+    , 30
+  
+  addEntity: (entity) ->
+    entity.id = ++@entityCounter
+    if @entityCounter >= entityCounterMax
+      @entityCounter = 0
+    
+    @entities[entity.id] = entity
+    entity.on \destroy, ~>
+      delete @entities[entity.id]
+    
+    @emit \entity, entity

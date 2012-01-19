@@ -1,0 +1,14 @@
+Entity = require "./entity"
+Packet = require "../net/packet"
+
+module.exports = class EntityPlayer extends Entity
+  
+  (world, @name) ->
+    super world
+  
+  getSpawnPacket: ->
+    [x, y, z] = for pos of @position
+      Math.floor pos * 32
+    [yaw, pitch] = for rot of @rotation
+      Math.floor rot / 360 * 256
+    Packet.playerSpawn @id, @name, x, y, z, yaw, pitch, 0
