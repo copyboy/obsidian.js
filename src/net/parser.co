@@ -1,24 +1,36 @@
 Stream = require \stream .Stream
-Packet = require "./packet"
+BufferedStream = require "./bufferedStream"
+ReadError = require "./readError"
+Packet    = require "./packet"
 
 module.exports = class Parser extends Stream
   
   (@type) ->
-    @readable = false
     @writable = true
+    @stream = new BufferedStream!
   
-  write: (buffer) ->
+  write: !(data) ->
     if !@writable then return
-    position = 0
-    while position < buffer.length
-      packet = Packet.read @type, buffer, position
-      if !packet then return
+    @stream.write data
+    while @writable && @stream.bytesLeft
+      offset = @stream.offset
+      try
+        packet = Packet.read @type, @stream
+      catch error
+        if error instanceof RangeError
+          @stream.offset = offset
+        else if error instanceof ReadError
+          @emit \error, error
+          @destroy!
+        else throw error
+        break
       @emit \packet, packet
-      if packet instanceof Error then return
-      position += packet.size
   
-  end: ->
+  end: !->
     @destroy!
   
-  destroy: ->
+  destroy: !->
+    if !@writable then return
     @writable = false
+    @stream.destroy!
+    @stream = null

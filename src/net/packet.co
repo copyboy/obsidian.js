@@ -1,4 +1,7 @@
-packets = require "./packets"
+BufferedStream = require "./bufferedStream"
+ReadError = require "./readError"
+Slot      = require "./slot"
+packets   = require "./packets"
 
 makeHex = -> "0x#{if it <= 0xF then "0" else ""}#{it.toString 16 .toUpperCase!}"
 
@@ -13,8 +16,6 @@ module.exports = class Packet
     @data = []
     
     dataCounter = 0
-    @size = 1
-    
     if data.length != expectedLength = (i = 0; ++i if name? for name of packet[type]; i)
       throw new Error "#{expectedLength} arguments expected, #{data.length} given"
     for t, i of packet.types
@@ -30,62 +31,51 @@ module.exports = class Packet
           throw new Error "#{t.type.name} expected, #{typeof value} given"
         if !value.constructor?
           throw new Error "#{t.type.name} expected, object given"
-        if !(value instanceof t.type)
+        if value !instanceof t.type
           throw new Error "#{t.type.name} expected, #{value.constructor.name} given"
       @data.push value
-      @size += t.getSize value
   
-  compile: ->
-    if !@buffer
-      @buffer = new Buffer @size
-      @buffer[0] = @id
-      offset = 1
-      for value, i of @data
-        t = packets[@id].types[i]
-        t.write @buffer, value, offset
-        offset += t.getSize value
-    @buffer
+  compile: (stream) ->
+    stream ?= new BufferedStream!
+    stream.writeByte @id
+    packets[@id].types[i].write stream, value for value, i of @data
+    stream.trim!
     
   toString: ->
-    data = for value of @data
-      switch typeof value
-        case \number then (Math.floor value * 100) / 100
-        case \string then "'#{value}'"
-        case \object then value.constructor?.name ? "???"
-        default value
-    "<Packet #{@name} [#{data.join ", "}]>"
+    stringify = (data) ->
+      data = for value of data
+        switch typeof value
+          case \number then (Math.floor value * 100) / 100
+          case \string then "'#{value}'"
+          case \object
+            if value instanceof Slot
+              value.toString!
+            else if value instanceof Array
+              stringify value
+            else value..?.name ? "???"
+          default value
+      "[#{data.join ", "}]"
+    "<Packet #{@name} #{stringify @data}>"
 
 /*
  * Reading packets
  */
-Packet.read = (type, buffer, offset = 0) ->
-  if buffer.length - offset < 1
-    return new Error "Error parsing packet"
-  startOffset = offset
-  id = buffer[offset]
-  offset += 1
+Packet.read = (type, stream) ->
+  id = stream.readByte!
   packet = packets[id]
-  if !packet?.client
-    return new Error "Unknown packet #{makeHex id}"
-  data = []
-  for t, i of packet.types
-    name = packet.client[i]
-    size = t.size
-    if typeof size == \number and buffer.length - offset < size
-      return new Error "Error parsing packet #{makeHex id}"
-    value = t.read buffer, offset
-    if value == null
-      return new Error "Error parsing packet #{makeHex id}"
-    offset += t.getSize value
-    if name != null
-      data.push value
+  if !packet?[type]
+    throw new ReadError "Unknown packet #{makeHex id}"
+  data = for t, i of packet.types
+    value = t.read stream
+    if packet[type][i] == null then continue
+    value
   Packet type, id, ...data
 
 /*
  * Creating packet constructors
  */
 for i, packet in packets
-  do ->
+  do !->
     id = Number i
     if !packet.server then return
     name = (packet.name[0].toLowerCase! + packet.name.substring 1).replace /[^A-z]/ig, ""

@@ -9,16 +9,18 @@ module.exports = class Entity extends EventEmitter
     @rotation = [ 0, 0, 0 ]
     @destroyed = false
     
-    @pos = [ 0, 0, 0 ]
-    @rot = [ 0, 0 ]
-    tick = ~> @tick()
+    @lastState =
+      pos: [ 0, 0, 0 ]
+      rot: [ 0, 0 ]
+    
+    tick = !~> @tick()
     @world.on \tick, tick
-    @on \destroy, ~>
+    @on \destroy, !~>
       @world.removeListener \tick, tick
     
     @world.addEntity this
   
-  tick: ->
+  tick: !->
     [x, y, z] = for p of @position
       Math.floor p * 32
     [yaw, pitch] = for r of @rotation
@@ -29,27 +31,27 @@ module.exports = class Entity extends EventEmitter
     sendLook = false
     
     for p, i of [x, y, z]
-      if p != @pos[i]
+      if p != @lastState.pos[i]
         sendPos = true
-      if (Math.abs p - @pos[i]) >= 4 * 32
+      if (Math.abs p - @lastState.pos[i]) >= 4 * 32
         sendTeleport = true
     for r, i of [yaw, pitch]
-      if r != @rot[i]
+      if r != @lastState.rot[i]
         sendLook = true
     
     if !sendPos && !sendLook then return
     
     packet = if sendPos
       if !sendTeleport
-        [xx, yy, zz] = for p, i of [x, y, z] then p - @pos[i]
+        [xx, yy, zz] = for p, i of [x, y, z] then p - @lastState.pos[i]
         if !sendLook then Packet.entityMove @id, xx, yy, zz
         else Packet.entityMoveLook @id, xx, yy, zz, yaw, pitch
       else Packet.entityTeleport @id, x, y, z, yaw, pitch
     else Packet.entityLook @id, yaw, pitch
     @emit \move, packet
     
-    @pos = [ x, y, z ]
-    @rot = [ yaw, pitch ]
+    @lastState.pos = [ x, y, z ]
+    @lastState.rot = [ yaw, pitch ]
   
   getSpawnPacket: ->
     # Implemented by child classes
@@ -57,7 +59,7 @@ module.exports = class Entity extends EventEmitter
   getDestroyPacket: ->
     Packet.destroyEntity @id
   
-  destroy: ->
+  destroy: !->
     if @destroyed then return
     @destroyed = true
     @emit \destroy

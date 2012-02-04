@@ -7,10 +7,9 @@ aiming for extensibility and being fun to play around with as a developer.
 
 ## What can it do?
 
-For now:
-
-- Login (no authentication)
-- Chunk sending (currently only a flat plane)
+- Can parse all packets except enchantments, hopefully
+- Login, without authentication for now
+- Chunk sending, currently only a flat plane
 - Players can see each other
 
 

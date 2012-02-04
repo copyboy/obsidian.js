@@ -1,0 +1,60 @@
+types = <[ byte short int float string slot vec ]>
+
+module.exports = class Metadata
+
+  (@data) ->
+  
+  @read = (stream) ->
+    data = {}
+    for ever
+      b = stream.readByte!
+      if b == 127 then break
+      index = b & 0x1F
+      type  = b >> 5
+      value = switch type
+        case 0 then stream.readByte!
+        case 1 then stream.readShort!
+        case 2 then stream.readInt!
+        case 3 then stream.readFloat!
+        case 4
+          length = stream.readShort!
+          buffer = stream.read length * 2
+          for i til length * 2 by 2
+            [buffer[i], buffer[i + 1]] = [buffer[i + 1], buffer[i]]
+          buffer.toString "ucs2"
+        case 5 
+          * id:     stream.readShort!
+            count:  stream.readByte!
+            damage: stream.readShort!
+        case 6
+          stream.readInt! for i til 3
+        default
+          throw new ReadError "Unknown metadata type #{type}"
+      data[index] = [ types[type], value ]
+    new Metadata data
+  
+  write: !(stream) ->
+    for index, data in @data
+      type = types.indexOf data[0]
+      if type == -1
+        throw new Error "Unknown metadata type #{data[0]}"
+      value = data[1]
+      stream.writeByte index | type << 5
+      switch type
+        case 0 then stream.writeByte value
+        case 1 then stream.writeShort value
+        case 2 then stream.writeInt value
+        case 3 then stream.writeFloat value
+        case 4
+          stream.writeShort value.length
+          buffer = new Buffer value, "ucs2"
+          for i til buffer.length by 2
+            [buffer[i], buffer[i + 1]] = [buffer[i + 1], buffer[i]]
+          stream.write buffer
+        case 5
+          stream.writeShort value.id
+          stream.writeByte value.count
+          stream.writeShort value.damage
+        case 6
+          stream.writeInt value[i] for i til 3
+    stream.writeByte 127

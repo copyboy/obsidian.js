@@ -11,26 +11,31 @@ enchantableItems =
   0x136 0x137 0x138 0x139
   0x13A 0x13B 0x13C 0x13D
 
+# TODO: Enchantments
 module.exports = class Slot
+
   (@id, @count, @damage) ->
     @empty = @id == -1
     @enchantable = (enchantableItems.indexOf @id) != -1
-    @size = if @empty then 2 else if @enchantable then 6 else 5
-  @read = (buffer, offset) ->
-    if buffer.length - offset < 2
-      return null
-    id = buffer.readInt16BE offset
+  
+  @read = (stream) ->
+    id = stream.readShort!
     if id != -1
-      enchantable = (enchantableItems.indexOf id) != -1
-      if buffer.length - offset < (if enchantable then 6 else 5)
-        return null
-      count = buffer.readUInt8 offset + 2
-      damage = buffer.readInt16BE offset + 3
-    return new Slot id, count, damage
-  write: (buffer, offset) ->
-    buffer.writeInt16BE @id, offset
+      count = stream.readByte!
+      damage = stream.readShort!
+    if (enchantableItems.indexOf id) != -1
+      stream.readShort!
+    new Slot id, count, damage
+  
+  write: !(stream) ->
+    stream.writeShort @id
     if !@empty
-      buffer.writeUInt8 @count, offset + 2
-      buffer.writeInt16BE @damage, offset + 3
+      stream.writeByte @count
+      stream.writeShort @damage
       if @enchantable
-        buffer.writeInt16BE -1, offset + 5
+        stream.writeShort -1
+
+  toString: ->
+    if @id == -1 then "<empty>"
+    else if @count == 1 then "<#{@id}>"
+    else "<#{@count}x #{@id}>"

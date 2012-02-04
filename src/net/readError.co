@@ -1,0 +1,3 @@
+module.exports = class ReadError extends Error
+  (@message) ->
+    @name = "ReadError"

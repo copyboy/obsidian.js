@@ -1,74 +1,84 @@
-Slot = require "./slot"
+ReadError = require "./readError"
+Slot      = require "./slot"
+Metadata  = require "./metadata"
 
-/*
- * Helper functions
- */
+module.exports = class Datatype
+  (@type, @default, @read, @write) ->
 
-# Long
-readLong = (buffer, offset) ->
-  buffer.readInt32BE offset + 4
-writeLong = (buffer, value, offset) ->
-  buffer.writeInt32BE 0, offset
-  buffer.writeInt32BE value << 0, offset + 4
+Datatype.byte   = byte   = new Datatype \number,  0,     (-> it.readByte!),   (!(s, v) -> s.writeByte v)
+Datatype.sbyte  = sbyte  = new Datatype \number,  0,     (-> it.readSByte!),  (!(s, v) -> s.writeSByte v)
+Datatype.short  = short  = new Datatype \number,  0,     (-> it.readShort!),  (!(s, v) -> s.writeShort v)
+Datatype.int    = int    = new Datatype \number,  0,     (-> it.readInt!),    (!(s, v) -> s.writeInt v)
+Datatype.long   = long   = new Datatype \number,  0,     (-> it.readLong!),   (!(s, v) -> s.writeLong v)
+Datatype.float  = float  = new Datatype \number,  0,     (-> it.readFloat!),  (!(s, v) -> s.writeFloat v)
+Datatype.double = double = new Datatype \number,  0,     (-> it.readDouble!), (!(s, v) -> s.writeDouble v)
+Datatype.bool   = bool   = new Datatype \boolean, false, (-> it.readBool!),   (!(s, v) -> s.writeBool v)
 
 # String
-readString = (buffer, offset) ->
-  if buffer.length - offset < 2
-    return null
-  length = buffer.readInt16BE offset
-  offset += 2
-  if buffer.length - offset < length
-    return null
-  buf = new Buffer length * 2
-  for ind to buffer.length - 1 by 2
-    buf[ind] = buffer[offset + ind + 1]
-    buf[ind + 1] = buffer[offset + ind]
-  buf.toString "ucs2"
-writeString = !(buffer, value, offset) ->
-  buffer.writeInt16BE value.length, offset
-  offset += 2
-  buffer.write value, offset, value.length * 2, "ucs2"
-  for ind from offset to offset + value.length * 2 by 2
-    [buffer[ind], buffer[ind + 1]] =
-      [buffer[ind + 1], buffer[ind]]
+# TODO: Splice the stream's buffer directly?
+readString = (stream) ->
+  length = stream.readShort!
+  if length < 0
+    throw new ReadError "Negative string length"
+  buffer = stream.read length * 2
+  for i til length * 2 by 2
+    [buffer[i], buffer[i + 1]] = [buffer[i + 1], buffer[i]]
+  buffer.toString "ucs2"
+
+writeString = !(stream, value) ->
+  stream.writeShort value.length
+  buffer = new Buffer value, "ucs2"
+  for i til buffer.length by 2
+    [buffer[i], buffer[i + 1]] = [buffer[i + 1], buffer[i]]
+  stream.write buffer
 
 # Raw
-readRaw = (sizeType, buffer, offset) ->
-  if buffer.length - offset < sizeType.size
-    return null
-  length = sizeType.read buffer, offset
-  offset += sizeType.size
-  if buffer.length - offset < length
-    return null
-  buf = new Buffer length
-  buffer.copy buf, 0, offset, offset + length
-  buf
-writeRaw = (sizeType, buffer, value, offset) ->
-  sizeType.write buffer, value.length, offset
-  offset += sizeType.size
-  value.copy buffer, offset
+readRaw = (sizeType, stream) ->
+  length = sizeType.read stream
+  if length < 0
+    throw new ReadError "Negative buffer length"
+  stream.read length
 
-/*
- * Datatype class
- */
-class Datatype
-  (@type, @default, @size, @read, @write) ->
-  getSize: (value) ->
-    if typeof @size == \function then @size value else @size
+writeRaw = !(sizeType, stream, value) ->
+  sizeType.write stream, value.length
+  stream.write value
 
-/*
- * Exports
- */
-exports.byte   = new Datatype \number, 0, 1, ((b, o) -> b.readUInt8(o)), ((b, v, o) -> b.writeUInt8(v, o))
-exports.sbyte  = new Datatype \number, 0, 1, ((b, o) -> b.readInt8(o)), ((b, v, o) -> b.writeInt8(v, o))
-exports.short  = new Datatype \number, 0, 2, ((b, o) -> b.readInt16BE(o)), ((b, v, o) -> b.writeInt16BE(v, o))
-exports.int    = new Datatype \number, 0, 4, ((b, o) -> b.readInt32BE(o)), ((b, v, o) -> b.writeInt32BE(v, o))
-exports.long   = new Datatype \number, 0, 8, readLong, writeLong
-exports.float  = new Datatype \number, 0, 4, ((b, o) -> b.readFloatBE(o)), ((b, v, o) -> b.writeFloatBE(v, o))
-exports.double = new Datatype \number, 0, 8, ((b, o) -> b.readDoubleBE(o)), ((b, v, o) -> b.writeDoubleBE(v, o))
-exports.bool   = new Datatype \boolean, false, 1, ((b, o) -> b[o] != 0), ((b, v, o) -> b[o] = if v then 1 else 0)
+# Array
+readArray = (sizeType, types, stream) ->
+  if types !instanceof Array
+    types = [ types ]
+  length = sizeType.read stream
+  if length < 0
+    throw new ReadError "Negative array length"
+  value = for arrayType, i of types
+    (for j til length then arrayType.read stream)
+  if types.length == 1 then value[0] else value
 
-exports.string = new Datatype \string, "", (-> 2 + it.length * 2), readString, writeString
-exports.slot   = new Datatype Slot, (new Slot -1), (-> it.size), ((b, o) -> Slot.read(b, o)), ((b, v, o) -> v.write(b, o))
-exports.raw    = (sizeType) -> new Datatype Buffer, (new Buffer 0), (-> sizeType.size + it.length),
-                                            ((b, o) -> readRaw sizeType, b, o), ((b, v, o) -> writeRaw sizeType, b, v, o)
+writeArray = !(sizeType, types, stream, value) ->
+  if types !instanceof Array
+    value = [ value ]
+    types = [ types ]
+  length = value[0].length
+  sizeType.write stream, length
+  for arrayType, i of types
+    for j til length
+      arrayType.write stream, value[i][j]
+
+# Thrower
+readThrower = (stream) ->
+  value = { id: stream.readInt! }
+  if value.id > 0
+    value.{x, y, z} = stream.readShort! for i til 3
+  value
+writeThrower = !(stream, value) ->
+  stream.writeInt value.id
+  if value.id > 0
+    stream.writeShort stream, v for v of value.<[x, y, z]>
+
+Datatype.string   =            new Datatype \string,  "",                readString,                    writeString
+Datatype.slot     =            new Datatype Slot,     (new Slot -1),     (-> Slot.read it),             (!(s, v) -> v.write s)
+Datatype.metadata =            new Datatype Metadata, (new Metadata []), (-> Metadata.read it),         (!(s, v) -> v.write s)
+Datatype.record   =            new Datatype Array,    [ 0, 0, 0 ],       (-> it.readByte! for i til 3), (!(s, v) -> s.writeByte v[i] for i til 3)
+Datatype.thrower  =            new Datatype Object,   { id: 0 },         (-> readThrower it),           (!(s, v) -> writeThrower s, v)
+Datatype.raw      = (st)    -> new Datatype Buffer,   (new Buffer 0),    (-> readRaw st, it),           (!(s, v) -> writeRaw st, s, v)
+Datatype.array    = (st, t) -> new Datatype Array,    (new Array 0),     (-> readArray st, t, it),      (!(s, v) -> writeArray st, t, s, v)

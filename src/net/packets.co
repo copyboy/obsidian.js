@@ -1,4 +1,4 @@
-{byte, sbyte, short, int, long, float, double, bool, string, raw, slot} = require "./types"
+{byte, sbyte, short, int, long, float, double, bool, string, slot, metadata, record, thrower, raw, array} = require "./types"
 
 module.exports =
   0x00:
@@ -100,16 +100,14 @@ module.exports =
     name: "Collect"
     types:  [ int,     int        ]
     server: [ \pickup, \collector ]
-  /*
-   * 0x17:
-   *   name: "Object Spawn"
-   *   types:  [ int,     byte,   int, int, int, ((int, short, short, short)) ]
-   *   server: [ \entity, \type,  \x,  \y,  \z,  \thrower, \xSpeed, \ySpeed, \zSpeed ]
-   * 0x18:
-   *   name: "Mob Spawn"
-   *   types:  [ int,     byte,  int, int, int, byte, byte,   metadata  ]
-   *   server: [ \entity, \type, \x,  \y,  \z,  \yaw, \pitch, \metadata ]
-   */
+  0x17:
+    name: "Object Spawn"
+    types:  [ int,     byte,   int, int, int, thrower  ]
+    server: [ \entity, \type,  \x,  \y,  \z,  \thrower ]
+  0x18:
+    name: "Mob Spawn"
+    types:  [ int,     byte,  int, int, int, byte, byte,   metadata  ]
+    server: [ \entity, \type, \x,  \y,  \z,  \yaw, \pitch, \metadata ]
   0x19:
     name: "Painting"
     types:  [ int,     string,  int, int, int, int        ]
@@ -154,12 +152,10 @@ module.exports =
     name: "Attach Entity"
     types:  [ int,     int      ]
     server: [ \entity, \vehicle ]
-  /*
-   * 0x28:
-   *   name: "Entity Metadata"
-   *   types:  [ int,     metadata  ]
-   *   server: [ \entity, \metadata ]
-   */
+  0x28:
+    name: "Entity Metadata"
+    types:  [ int,     metadata  ]
+    server: [ \entity, \metadata ]
   0x29:
     name: "Effect"
     types:  [ int,     byte,    byte,       short      ]
@@ -180,12 +176,10 @@ module.exports =
     name: "Chunk Part"
     types:  [ int, short, int, byte,   byte,   byte,    raw(int) ]
     server: [ \x,  \y,    \z,  \width, \depth, \height, \data    ]
-  /*
-   * 0x34:
-   *   name: "Multi Block Change"
-   *   types:  [ int, int, arrays(short) ]
-   *   server: [ \x,  \z,  \blockChanges ]
-   */
+  0x34:
+    name: "Multi Block Change"
+    types:  [ int, int, array(short, [short, byte, byte]) ]
+    server: [ \x,  \z,  \blockChanges                     ]
   0x35:
     name: "Block Change"
     types:  [ int, byte, int, byte,  byte      ]
@@ -194,12 +188,10 @@ module.exports =
     name: "Block Action"
     types:  [ int, short, int, byte,   byte   ]
     server: [ \x,  \y,    \z,  \data1, \data2 ]
-  /*
-   * 0x3C:
-   *   name: "Explosion"
-   *   types:  [ double, double, double, float,   ...
-   *   server: [ \x,     \y,     \z,     \radius, ...
-   */
+  0x3C:
+    name: "Explosion"
+    types:  [ double, double, double, float,   array(int, record) ]
+    server: [ \x,     \y,     \z,     \radius, \records           ]
   0x3D:
     name: "Sound/Particle Effect"
     types:  [ int,     int, byte, int, int   ]
@@ -221,20 +213,18 @@ module.exports =
     types:  [ byte    ]
     server: [ \window ]
     client: [ \window ]
-  /*
-   * 0x66:
-   *   name: "Window Click"
-   *   types:  [ byte,    short, byte,        short,   bool,   slot  ]
-   *   client: [ \window, \slot, \rightclick, \action, \shift, \item ]
-   * 0x67:
-   *   name: "Set Slot"
-   *   types:  [ byte,    short, slot  ]
-   *   server: [ \window, \slot, \item ]
-   * 0x68:
-   *   name: "Window Items"
-   *   types:  [ byte,    short,  array(slot) ]
-   *   server: [ \window, \count, \slots      ]
-   */
+  0x66:
+    name: "Window Click"
+    types:  [ byte,    short, byte,        short,   bool,   slot  ]
+    client: [ \window, \slot, \rightclick, \action, \shift, \item ]
+  0x67:
+    name: "Set Slot"
+    types:  [ byte,    short, slot  ]
+    server: [ \window, \slot, \item ]
+  0x68:
+    name: "Window Items"
+    types:  [ byte,    array(short, slot) ]
+    server: [ \window, \slots             ]
   0x69:
     name: "Window Property"
     types:  [ byte,    short,     short  ]
@@ -243,12 +233,11 @@ module.exports =
     name: "Transaction"
     types:  [ byte,    short,   bool      ]
     server: [ \window, \action, \accepted ]
-  /*
-   * 0x6B:
-   *   name: "Creative Action"
-   *   types:  [ short, slot  ]
-   *   server: [ \slot, \item ]
-   */
+  0x6B:
+    name: "Creative Action"
+    types:  [ short, slot  ]
+    server: [ \slot, \item ]
+    client: [ \slot, \item ]
   0x6C:
     name: "Enchant Item"
     types:  [ byte,    byte         ]

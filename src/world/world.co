@@ -8,17 +8,17 @@ module.exports = class World extends EventEmitter
     @entityCounter = 0
     @entities = []
     
-    setInterval ~>
+    setInterval !~>
       @emit \tick
     , 30
   
-  addEntity: (entity) ->
+  addEntity: !(entity) ->
     entity.id = ++@entityCounter
     if @entityCounter >= entityCounterMax
       @entityCounter = 0
     
     @entities[entity.id] = entity
-    entity.on \destroy, ~>
+    entity.on \destroy, !~>
       delete @entities[entity.id]
     
     @emit \entity, entity

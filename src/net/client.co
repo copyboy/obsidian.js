@@ -6,7 +6,7 @@ Packet = require "./packet"
 EntityPlayer = require "../world/entityPlayer"
 
 chunk = null
-do ->
+do !->
   size = 16 * 128 * 16
   all = new Buffer size * 2.5
   all.fill 0
@@ -15,7 +15,7 @@ do ->
     for z til 16
       for y til 59
         blocks[y + z * 128 + x * 128 * 16] = 0x01
-      for y from 59 til 62
+      for y from 59 til 63
         blocks[y + z * 128 + x * 128 * 16] = 0x03
       blocks[63 + z * 128 + x * 128 * 16] = 0x02
   metadata = all.slice size, size * 1.5
@@ -40,28 +40,28 @@ module.exports = class MinecraftClient extends EventEmitter
     @lastPing = 0
     
     @socket.setNoDelay!
-    @socket.setTimeout 30 * 1000, ~> @disconnect "Timeout."
-    @socket.on \error, (err) ~> @emit \error, err
-    @socket.on \close, ~> @disconnect false
+    @socket.setTimeout 30 * 1000, !~> @disconnect "Timeout."
+    @socket.on \error, !(error) ~> @disconnect "Error: #{error.message}"
+    @socket.on \close, !~> @disconnect false
     
     @parser = new Parser \client
     @socket.pipe(@parser)
     
-    @parser.on \packet, (packet) ~>
-      if packet instanceof Error
-        @disconnect "Error: #{packet.message}"
-        return
-      
+    @parser.on \error, !(error) ~>
+      @disconnect "Error: #{error.message}"
+    
+    @parser.on \packet, !(packet) ~>
+      # console.log "#{@name ? @address} => #{packet}"
       @emit \packet, packet
       switch packet.name
         
         case "Handshake"
-          if handshaked then break
+          if handshaked then return
           handshaked := true
           @send Packet.handshake "-"
         
         case "Login"
-          if loggedIn then break
+          if loggedIn then return
           loggedIn := true
           
           if packet.data.version != 23
@@ -70,10 +70,10 @@ module.exports = class MinecraftClient extends EventEmitter
           @name = packet.data.username
           
           @emit \login
-          if !@connected then break
+          if !@connected then return
           console.log "#{@address} logged in as #{@name}."
           
-          @pinging = setInterval ~>
+          @pinging = setInterval !~>
             @lastPing = Math.floor (Math.random! - 0.5) * (2 ** 32)
             @send Packet.ping @lastPing
           , 10000
@@ -86,24 +86,24 @@ module.exports = class MinecraftClient extends EventEmitter
               @send Packet.chunkPart x * 16, 0, z * 16, 15, 127, 15, chunk
           @send Packet.playerPositionLook 0, 66, 66, 0, 0, 0, false
           
-          watchEntity = (entity) ~>
+          watchEntity = !(entity) ~>
             @send entity.getSpawnPacket!
-            onMove = (packet) ~> @send packet
-            onDestroy = ~> @send entity.getDestroyPacket!
+            onMove = !(packet) ~> @send packet
+            onDestroy = !~> @send entity.getDestroyPacket!
             entity.on \move, onMove
             entity.on \destroy, onDestroy
-            @on \disconnect, ~>
+            @on \disconnect, !~>
               entity.removeListener \move, onMove
               entity.removeListener \destroy, onDestroy
           
-          @server.world.entities.forEach -> watchEntity it
+          @server.world.entities.forEach !-> watchEntity it
           @entity = new EntityPlayer @server.world, @name
-          @server.world.on \entity, ~> watchEntity it
+          @server.world.on \entity, !~> watchEntity it
         
         case "Player OnGround", "Player Position", "Player Look", "Player Position + Look"
           if !@entity then break
-          @entity.position = packet.data[\x, \y, \z] if packet.data.x
-          @entity.rotation = ((rot % 360 + 360) % 360 for rot of packet.data[\yaw, \pitch]) if packet.data.yaw
+          @entity.position = packet.data<[x, y, z]> if packet.data.x
+          @entity.rotation = ((rot % 360 + 360) % 360 for rot of packet.data<[yaw, pitch]>) if packet.data.yaw
         
         case "Serverlist Ping"
           @send Packet.disconnect "#{@server.description}"
@@ -114,12 +114,12 @@ module.exports = class MinecraftClient extends EventEmitter
     
     console.log "#{@address} connected."
   
-  send: (packet) ->
+  send: !(packet) ->
     if !@connected then return
     # console.log "#{@name ? @address} <= #{packet}"
     @socket.write packet.compile!
   
-  disconnect: (reason) ->
+  disconnect: !(reason) ->
     if !@connected then return
     if reason !== false
       @send Packet.disconnect reason ? "Disconnected."

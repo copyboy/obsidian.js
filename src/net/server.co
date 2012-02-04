@@ -9,9 +9,9 @@ module.exports = class MinecraftServer extends Server
     @description = "obsidian.js Test Server"
     @world = new World this
     
-    @on \connection, (socket) ~>
+    @on \connection, !(socket) ~>
       client = new Client this, socket
       @emit \client, client
     
-    @on \listening, ~>
+    @on \listening, !~>
       console.log "obsidian.js ready for incoming connections."

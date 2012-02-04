@@ -1,0 +1,101 @@
+Stream = require \stream .Stream
+
+byte   = { size: 1, read: ((b, o) -> b.readUInt8 o),       write: (!(b, v, o) -> b.writeUInt8 v, o) }
+sbyte  = { size: 1, read: ((b, o) -> b.readInt8 o),        write: (!(b, v, o) -> b.writeInt8 v, o) }
+short  = { size: 2, read: ((b, o) -> b.readInt16BE o),     write: (!(b, v, o) -> b.writeInt16BE v, o) }
+int    = { size: 4, read: ((b, o) -> b.readInt32BE o),     write: (!(b, v, o) -> b.writeInt32BE v, o) }
+long   = { size: 8, read: ((b, o) -> b.readInt32BE o + 4), write: (!(b, v, o) -> b.writeInt32BE 0, o; b.writeInt32BE v, o + 4) }
+float  = { size: 4, read: ((b, o) -> b.readFloatBE o),     write: (!(b, v, o) -> b.writeFloatBE v, o) }
+double = { size: 8, read: ((b, o) -> b.readDoubleBE o),    write: (!(b, v, o) -> b.writeDoubleBE v, o) }
+bool   = { size: 1, read: ((b, o) -> !!b.readUInt8 o),     write: (!(b, v, o) -> b.writeUInt8 if v then 1 else 0, o) }
+
+readSimple = (stream, type) ->
+  if !stream.writable
+    throw new Error "Buffer is destroyed"
+  if stream.bytesLeft < type.size
+    throw new RangeError "Buffer length too small"
+  value = type.read stream.buffer, stream.offset
+  stream.offset += type.size
+  value
+
+writeSimple = !(stream, type, value) ->
+  if !stream.writable
+    throw new Error "Buffer is destroyed"
+  stream.ensureSize type.size
+  type.write stream.buffer, value, stream.length
+  stream.length += type.size
+
+module.exports = class BufferedStream extends Stream
+
+  ->
+    @writable = true
+    
+    if @@0 instanceof Buffer
+      @buffer = @@0
+      @offset = @@1 ? 0
+      @length = @@2 ? @buffer.length
+    else
+      initialSize = @@0 ? 128
+      @buffer = new Buffer initialSize
+      @offset = 0
+      @length = 0
+  
+  ensureSize: !(length) ->
+    if @buffer.length >= @length + length then return
+    newBuffer = @buffer
+    if @buffer.length < @length - @offset + length
+      newBuffer = new Buffer Math.max @length - @offset + length, @buffer.length * 2
+      if newBuffer.length >= 8192
+        console.log "WARNING: Parser buffer size increased from #{@buffer.length} to #{newBuffer.length}!"
+    @buffer.copy newBuffer, 0, @offset, @length
+    @buffer = newBuffer
+    @length -= @offset
+    @offset = 0
+  
+  read: (length) ->
+    if !@writable
+      throw new Error "Buffer is destroyed"
+    if @bytesLeft < length
+      throw new RangeError "Buffer length too small"
+    value = new Buffer length
+    @buffer.copy value, 0, @offset, @offset + length
+    @offset += length
+    value
+  
+  readByte:   -> readSimple this, byte
+  readSByte:  -> readSimple this, sbyte
+  readShort:  -> readSimple this, short
+  readInt:    -> readSimple this, int
+  readLong:   -> readSimple this, long
+  readFloat:  -> readSimple this, float
+  readDouble: -> readSimple this, double
+  readBool:   -> readSimple this, bool
+  
+  write: !(data) ->
+    if !@writable
+      throw new Error "Buffer is destroyed"
+    @ensureSize data.length
+    data.copy @buffer, @length
+    @length += data.length
+  
+  writeByte:   !(value) -> writeSimple this, byte, value
+  writeSByte:  !(value) -> writeSimple this, sbyte, value
+  writeShort:  !(value) -> writeSimple this, short, value
+  writeInt:    !(value) -> writeSimple this, int, value
+  writeLong:   !(value) -> writeSimple this, long, value
+  writeFloat:  !(value) -> writeSimple this, float, value
+  writeDouble: !(value) -> writeSimple this, double, value
+  writeBool:   !(value) -> writeSimple this, bool, value
+  
+  trim: ->
+    if @offset == 0 && @length == @buffer.length
+      return @buffer
+    buffer = new Buffer @length - @offset
+    @buffer.copy buffer, 0, @offset, @length
+    @buffer = buffer
+  
+  bytesLeft: ~-> @length - @offset
+  
+  destroy: !->
+    @writable = false
+    @buffer = null
