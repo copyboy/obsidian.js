@@ -7,9 +7,9 @@ aiming for extensibility and being fun to play around with as a developer.
 
 ## What can it do?
 
-- Can parse all packets except enchantments, hopefully
-- Login, without authentication for now
-- Chunk sending, currently only a flat plane
+- Parse and compile all packets except enchantments, hopefully
+- Login, complete with authentication
+- Chunk sending, currently only a finite flat plane
 - Players can see each other
 
 
@@ -17,5 +17,4 @@ aiming for extensibility and being fun to play around with as a developer.
 
 Get [Node.js](http://nodejs.org/) if you don't have it already.  
 Install [Coco](http://satyr.github.com/coco/): `npm install -g coco`  
-Compile it: `coco -co lib/ src/`  
-Run it: `node lib/main`
+Run it: `coco src/main`

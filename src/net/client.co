@@ -1,5 +1,6 @@
-EventEmitter = require \events .EventEmitter
 zlib = require \zlib
+http = require \http
+EventEmitter = require \events .EventEmitter
 
 Parser = require "./parser"
 Packet = require "./packet"
@@ -30,11 +31,13 @@ module.exports = class MinecraftClient extends EventEmitter
   (@server, @socket) ->
     super!
     @connected = true
+    @loggedIn = false
+    
+    @name = null
     @address = socket.remoteAddress
     @entity = null
     
-    handshaked = false
-    loggedIn = false
+    authHash = new Buffer (Math.floor Math.random 256 for i til 8) .toString \hex
     
     @pinging = null
     @lastPing = 0
@@ -50,73 +53,81 @@ module.exports = class MinecraftClient extends EventEmitter
     @parser.on \error, !(error) ~>
       @disconnect "Error: #{error.message}"
     
+    packet <~! @parser.once \packet
+    switch packet.name
+      case "Handshake"
+        @name = packet.data.name
+        @send Packet.handshake authHash
+      case "Serverlist Ping"
+        @send Packet.disconnect "#{@server.description}"
+        @disconnect false; return
+      default
+        @disconnect "Incorrect login sequence"; return
+    
+    packet <~! @parser.once \packet
+    if packet.name != "Login"
+      @disconnect "Incorrect login sequence"; return
+    
+    if packet.data.name != @name then @disconnect "Incorrect login"; return
+    if packet.data.version < 23 then @disconnect "Outdated client"; return
+    if packet.data.version > 23 then @disconnect "Outdated server"; return
+    
+    res <~! http.get host: "session.minecraft.net", path: "/game/checkserver.jsp?user=#{@name}&serverId=#{authHash}"
+    res.setEncoding \ascii
+    answer <~! res.on \data
+    if answer != "YES"
+      @disconnect "Failed to verify username!"; return
+    
+    @emit \login
+    if !@connected then return
+    console.log "#{@address} logged in as #{@name}."
+    @loggedIn = true
+    
+    @pinging = setInterval !~>
+      @lastPing = Math.floor (Math.random! - 0.5) * (2 ** 32)
+      @send Packet.ping @lastPing
+    , 10000
+    
+    @send Packet.login 0, 0, "DEFAULT", 1, 0, 0, 128, 16
+    @send Packet.spawnPosition 0, 64, 0
+    for x from -5 til 5
+      for z from -5 til 5
+        @send Packet.chunk x, z, true
+        @send Packet.chunkPart x * 16, 0, z * 16, 15, 127, 15, chunk
+    @send Packet.playerPositionLook 0, 66, 66, 0, 0, 0, false
+    
+    watchEntity = !(entity) ~>
+      @send entity.getSpawnPacket!
+      onMove = !(packet) ~> @send packet
+      onDestroy = !~> @send entity.getDestroyPacket!
+      entity.on \move, onMove
+      entity.on \destroy, onDestroy
+      @on \disconnect, !~>
+        entity.removeListener \move, onMove
+        entity.removeListener \destroy, onDestroy
+    
+    @server.world.entities.forEach !-> watchEntity it
+    @entity = new EntityPlayer @server.world, @name
+    @server.world.on \entity, !~> watchEntity it
+    
     @parser.on \packet, !(packet) ~>
-      # console.log "#{@name ? @address} => #{packet}"
-      @emit \packet, packet
       switch packet.name
-        
-        case "Handshake"
-          if handshaked then return
-          handshaked := true
-          @send Packet.handshake "-"
-        
-        case "Login"
-          if loggedIn then return
-          loggedIn := true
-          
-          if packet.data.version != 23
-            @disconnect "Version doesn't match"
-            return
-          @name = packet.data.username
-          
-          @emit \login
-          if !@connected then return
-          console.log "#{@address} logged in as #{@name}."
-          
-          @pinging = setInterval !~>
-            @lastPing = Math.floor (Math.random! - 0.5) * (2 ** 32)
-            @send Packet.ping @lastPing
-          , 10000
-          
-          @send Packet.login 0, 0, "DEFAULT", 1, 0, 0, 128, 16
-          @send Packet.spawnPosition 0, 64, 0
-          for x from -5 til 5
-            for z from -5 til 5
-              @send Packet.chunk x, z, true
-              @send Packet.chunkPart x * 16, 0, z * 16, 15, 127, 15, chunk
-          @send Packet.playerPositionLook 0, 66, 66, 0, 0, 0, false
-          
-          watchEntity = !(entity) ~>
-            @send entity.getSpawnPacket!
-            onMove = !(packet) ~> @send packet
-            onDestroy = !~> @send entity.getDestroyPacket!
-            entity.on \move, onMove
-            entity.on \destroy, onDestroy
-            @on \disconnect, !~>
-              entity.removeListener \move, onMove
-              entity.removeListener \destroy, onDestroy
-          
-          @server.world.entities.forEach !-> watchEntity it
-          @entity = new EntityPlayer @server.world, @name
-          @server.world.on \entity, !~> watchEntity it
+      
+        case "Handshake", "Login", "Serverlist Ping"
+          @disconnect "Error: Invalid context for #{packet.name}"
         
         case "Player OnGround", "Player Position", "Player Look", "Player Position + Look"
-          if !@entity then break
+          if !@entity then return
           @entity.position = packet.data<[x, y, z]> if packet.data.x
           @entity.rotation = ((rot % 360 + 360) % 360 for rot of packet.data<[yaw, pitch]>) if packet.data.yaw
         
-        case "Serverlist Ping"
-          @send Packet.disconnect "#{@server.description}"
-          @disconnect false
-        
-        case "Disconnect"
-          @disconnect!
+        case "Disconnect" then @disconnect!
     
     console.log "#{@address} connected."
   
   send: !(packet) ->
     if !@connected then return
-    # console.log "#{@name ? @address} <= #{packet}"
+    # console.log "#{if @loggedIn then @name else @address} <= #{packet}"
     @socket.write packet.compile!
   
   disconnect: !(reason) ->
@@ -132,7 +143,7 @@ module.exports = class MinecraftClient extends EventEmitter
     @parser.destroy!
     @parser = null
     
-    if @entity then @entity.destroy!
-    if @pinging then clearTimeout @pinging
+    @entity.destroy! if @entity
+    clearTimeout @pinging if @pinging
     
     @emit \disconnect, reason

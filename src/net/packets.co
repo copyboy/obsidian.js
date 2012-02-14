@@ -8,14 +8,14 @@ module.exports =
     client: [ \id ]
   0x01:
     name: "Login"
-    types:  [ int,       string,    long,     string,     int,       byte,       byte,        byte,       byte        ]
-    server: [ \playerID, null,      \mapSeed, \levelType, \gamemode, \dimension, \difficulty, \mapHeight, \maxPlayers ]
-    client: [ \version,  \username, null,     null,       null,      null,       null,        null,       null        ]
+    types:  [ int,       string, long,     string,     int,       byte,       byte,        byte,       byte        ]
+    server: [ \playerID, null,   \mapSeed, \levelType, \gamemode, \dimension, \difficulty, \mapHeight, \maxPlayers ]
+    client: [ \version,  \name,  null,     null,       null,      null,       null,        null,       null        ]
   0x02:
     name: "Handshake"
     types:  [ string    ]
     server: [ \authHash ]
-    client: [ \username ]
+    client: [ \name     ]
   0x03:
     name: "Chat"
     types:  [ string   ]
@@ -90,8 +90,8 @@ module.exports =
     client: [ null, \type ]
   0x14:
     name: "Player Spawn"
-    types:  [ int,     string,      int, int, int, byte, byte,   short ]
-    server: [ \entity, \playerName, \x,  \y,  \z,  \yaw, \pitch, \item ]
+    types:  [ int,     string, int, int, int, byte, byte,   short ]
+    server: [ \entity, \name,  \x,  \y,  \z,  \yaw, \pitch, \item ]
   0x15:
     name: "Pickup Spawn"
     types:  [ int,     short, byte,   short,   int, int, int, byte, byte,   byte  ]
